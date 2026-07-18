@@ -1,0 +1,22 @@
+data_MolecularYou_Demo
+#
+_entry.id MolecularYou_Demo
+_audit_conform.dict_name mmcif_pdbx.dic
+_audit_conform.dict_version 5.381
+#
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM 1 C CA ALA A 1 0.000 0.000 0.000
+ATOM 2 O O ALA A 1 1.200 0.200 0.100
+ATOM 3 N N GLY A 2 2.100 1.100 0.300
+ATOM 4 C CA GLY A 2 3.000 1.800 0.700
+#
