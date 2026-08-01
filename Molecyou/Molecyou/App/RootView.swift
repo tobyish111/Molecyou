@@ -16,13 +16,16 @@ struct RootView: View {
                     OnboardingView(environment: environment, hasCompletedOnboarding: $hasCompletedOnboarding)
                 }
             } else {
-                ProgressView("Preparing Molecular You")
+                ProgressView("Preparing Molecyou")
             }
         }
         .task {
             if environment == nil {
-                environment = AppEnvironment.live(modelContext: modelContext)
+                environment = AppEnvironment.live(modelContext: modelContext, demonstrationMode: demonstrationMode)
             }
+        }
+        .onChange(of: demonstrationMode) { _, newValue in
+            environment = AppEnvironment.live(modelContext: modelContext, demonstrationMode: newValue)
         }
     }
 }
@@ -30,10 +33,8 @@ struct RootView: View {
 struct MainTabView: View {
     @Bindable var environment: AppEnvironment
     @State private var todayPath: [AppRoute] = []
-    @State private var atlasPath: [AppRoute] = []
     @State private var explorePath: [AppRoute] = []
     @State private var libraryPath: [AppRoute] = []
-    @State private var profilePath: [AppRoute] = []
 
     var body: some View {
         TabView {
@@ -42,12 +43,6 @@ struct MainTabView: View {
                     .navigationDestination(for: AppRoute.self) { destinationView($0) }
             }
             .tabItem { Label("Today", systemImage: "sparkles") }
-
-            NavigationStack(path: $atlasPath) {
-                AtlasView(environment: environment)
-                    .navigationDestination(for: AppRoute.self) { destinationView($0) }
-            }
-            .tabItem { Label("Atlas", systemImage: "figure.arms.open") }
 
             NavigationStack(path: $explorePath) {
                 ExploreView(environment: environment)
@@ -60,12 +55,6 @@ struct MainTabView: View {
                     .navigationDestination(for: AppRoute.self) { destinationView($0) }
             }
             .tabItem { Label("Library", systemImage: "books.vertical") }
-
-            NavigationStack(path: $profilePath) {
-                ProfileView(environment: environment)
-                    .navigationDestination(for: AppRoute.self) { destinationView($0) }
-            }
-            .tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
         .tint(.myAccent)
     }
@@ -87,7 +76,7 @@ struct MainTabView: View {
             }
         case .functionModule(let id):
             if let module = environment.knowledgeGraph.module(id: id) {
-                FunctionExplanationView(module: module)
+                FunctionExplanationView(environment: environment, module: module)
             } else {
                 ErrorStateView(title: "Module unavailable", message: "This lesson is not available.", actionTitle: nil, action: nil)
             }

@@ -4,8 +4,7 @@ enum SeedKnowledgeGraph {
     static func make() -> KnowledgeGraph {
         let sources = [
             SourceReference(id: "alphafold", title: "AlphaFold Protein Structure Database", publisher: "EMBL-EBI and DeepMind", url: URL(string: "https://alphafold.ebi.ac.uk"), license: "CC BY 4.0", reviewedDate: "2026-07-18"),
-            SourceReference(id: "uniprot", title: "UniProt Knowledgebase", publisher: "UniProt Consortium", url: URL(string: "https://www.uniprot.org"), license: "CC BY 4.0", reviewedDate: "2026-07-18"),
-            SourceReference(id: "app-authored", title: "Molecular You educational summaries", publisher: "Molecular You", url: nil, license: nil, reviewedDate: "2026-07-18")
+            SourceReference(id: "uniprot", title: "UniProt Knowledgebase", publisher: "UniProt Consortium", url: URL(string: "https://www.uniprot.org"), license: "CC BY 4.0", reviewedDate: "2026-07-18")
         ]
 
         let systems = [
@@ -62,27 +61,72 @@ enum SeedKnowledgeGraph {
         ]
 
         let modules = [
-            EducationModule(id: "hemoglobin-function", systemID: "oxygen-transport", title: "How Hemoglobin Works", summary: "A guided explanation of oxygen binding, transport, and release.", steps: [
+            EducationModule(id: "hemoglobin-function", systemID: "oxygen-transport", title: "How Hemoglobin Works", summary: "How hemoglobin binds oxygen, carries it through blood, and releases it in tissues.", steps: [
                 EducationStep(id: "bind", title: "Oxygen binds to heme", body: "Oxygen can reversibly bind iron in heme groups within hemoglobin.", symbol: "circle.hexagongrid"),
-                EducationStep(id: "transport", title: "Transport through circulation", body: "Red blood cells carry hemoglobin through the bloodstream.", symbol: "arrow.triangle.branch"),
-                EducationStep(id: "release", title: "Release in tissues", body: "Oxygen is released where local chemistry favors unloading.", symbol: "drop"),
-                EducationStep(id: "co2", title: "Carbon dioxide and pH matter", body: "Carbon dioxide and pH influence oxygen release; this app does not measure hemoglobin activity.", symbol: "aqi.medium")
-            ], sourceIDs: ["app-authored", "uniprot"]),
-            EducationModule(id: "muscle-power", systemID: "muscle-contraction", title: "Powering Contraction", summary: "How ATP, calcium, actin, and myosin support movement.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "circadian-loop", systemID: "sleep-circadian", title: "The Circadian Feedback Loop", summary: "How CLOCK, BMAL1, PER, and CRY proteins participate in timing.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "cellular-atp", systemID: "cellular-energy", title: "ATP in Brief", summary: "Fuel transport and mitochondrial ATP production as educational concepts.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "gas-exchange-basics", systemID: "respiratory-biology", title: "Gas Exchange Basics", summary: "A cautious overview of oxygen and carbon dioxide movement.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "cardiac-response", systemID: "cardiac-signaling", title: "Heart Rate Response", summary: "How signaling pathways generally relate to changes in effort.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "immune-recognition", systemID: "immune-defense", title: "Immune Recognition", summary: "How proteins participate in recognition and signaling.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "neural-signals", systemID: "nervous-system", title: "Neural Signals", summary: "Receptors and signal transmission in general biology.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "hormone-signaling", systemID: "endocrine", title: "Hormone Signaling", summary: "How receptors relay endocrine messages.", steps: [], sourceIDs: ["app-authored"]),
-            EducationModule(id: "fluid-balance", systemID: "renal", title: "Fluid Balance", summary: "Channels and transporters in kidney education.", steps: [], sourceIDs: ["app-authored"])
+                EducationStep(id: "transport", title: "Red blood cells carry it", body: "Red blood cells move hemoglobin through circulation so oxygen can reach distant tissues.", symbol: "arrow.triangle.branch"),
+                EducationStep(id: "release", title: "Tissues favor release", body: "Local chemistry around active tissues can favor oxygen unloading from hemoglobin.", symbol: "drop"),
+                EducationStep(id: "co2", title: "Carbon dioxide shifts binding", body: "Carbon dioxide and pH influence oxygen release; the app does not measure hemoglobin activity.", symbol: "aqi.medium")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "muscle-power", systemID: "muscle-contraction", title: "How Muscle Contraction Works", summary: "How ATP, calcium, actin, and myosin support movement.", steps: [
+                EducationStep(id: "calcium", title: "Calcium exposes binding sites", body: "Calcium signals shift regulatory proteins so myosin can interact with actin filaments.", symbol: "bolt.heart"),
+                EducationStep(id: "bridge", title: "Myosin pulls actin", body: "Myosin heads bind actin and use ATP-linked shape changes to slide filaments past each other.", symbol: "arrow.left.and.right"),
+                EducationStep(id: "recharge", title: "ATP resets the motor", body: "ATP binding and hydrolysis detach and re-cock myosin so repeated cycles can generate force.", symbol: "battery.100"),
+                EducationStep(id: "relax", title: "Calcium returns to storage", body: "Calcium pumps help move calcium back into storage compartments so the fiber can relax.", symbol: "arrow.down.circle")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "circadian-loop", systemID: "sleep-circadian", title: "How Circadian Timing Works", summary: "How CLOCK, BMAL1, PER, and CRY proteins participate in daily timing.", steps: [
+                EducationStep(id: "activate", title: "CLOCK and BMAL1 start transcription", body: "CLOCK and BMAL1 can partner to activate genes involved in the circadian cycle.", symbol: "sunrise"),
+                EducationStep(id: "accumulate", title: "PER and CRY accumulate", body: "PER and CRY proteins build up over time after their genes are expressed.", symbol: "hourglass"),
+                EducationStep(id: "feedback", title: "Feedback slows the cycle", body: "Accumulated PER and CRY proteins help reduce CLOCK-BMAL1 activity, forming a feedback loop.", symbol: "arrow.triangle.2.circlepath"),
+                EducationStep(id: "reset", title: "Signals tune the rhythm", body: "Light exposure, sleep timing, and behavior can influence the timing signals that feed into this system.", symbol: "moon.stars")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "cellular-atp", systemID: "cellular-energy", title: "How Cellular Energy Works", summary: "How transporters, enzymes, and mitochondria turn fuel into ATP.", steps: [
+                EducationStep(id: "uptake", title: "Fuel enters the cell", body: "Transporters such as GLUT4 help move glucose into cells when the right signals are present.", symbol: "rectangle.and.arrow.down"),
+                EducationStep(id: "glycolysis", title: "Glucose is processed in steps", body: "Enzymes convert glucose through intermediate molecules while capturing usable energy.", symbol: "point.3.connected.trianglepath.dotted"),
+                EducationStep(id: "mitochondria", title: "Mitochondria make most ATP", body: "Mitochondrial enzyme complexes use fuel-derived electrons to support ATP production.", symbol: "bolt.circle"),
+                EducationStep(id: "buffer", title: "Cells buffer quick demand", body: "Systems such as creatine kinase help smooth fast-changing energy demand in tissues like muscle.", symbol: "waveform.path.ecg")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "gas-exchange-basics", systemID: "respiratory-biology", title: "How Gas Exchange Works", summary: "How oxygen and carbon dioxide move between air, blood, and tissues.", steps: [
+                EducationStep(id: "airflow", title: "Air reaches exchange surfaces", body: "Breathing brings fresh air to thin exchange surfaces in the lungs.", symbol: "wind"),
+                EducationStep(id: "oxygen", title: "Oxygen moves into blood", body: "Oxygen moves from air spaces into nearby blood where it can bind transport proteins.", symbol: "arrow.down.to.line.compact"),
+                EducationStep(id: "carbon-dioxide", title: "Carbon dioxide moves out", body: "Carbon dioxide produced by tissues is carried back toward the lungs and released into exhaled air.", symbol: "arrow.up.to.line.compact"),
+                EducationStep(id: "transport", title: "Blood proteins support transport", body: "Hemoglobin and related proteins help coordinate oxygen delivery and carbon dioxide handling.", symbol: "heart.text.square")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "cardiac-response", systemID: "cardiac-signaling", title: "How Heart Rate Response Works", summary: "How receptor signals, calcium handling, and ATP demand relate to changes in effort.", steps: [
+                EducationStep(id: "signal", title: "Signals reach heart cells", body: "Adrenergic receptors help heart cells respond to nervous system signals during changing demand.", symbol: "antenna.radiowaves.left.and.right"),
+                EducationStep(id: "calcium", title: "Calcium coordinates contraction", body: "Calcium-handling proteins help control the timing and strength of heart muscle contraction.", symbol: "waveform.path.ecg"),
+                EducationStep(id: "energy", title: "Energy supply adapts", body: "Mitochondrial and metabolic proteins help support the ATP needs of repeated contraction.", symbol: "bolt.circle"),
+                EducationStep(id: "recovery", title: "Recovery restores baseline", body: "Transporters and pumps help cells reset after each contraction and after periods of higher effort.", symbol: "arrow.counterclockwise")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "immune-recognition", systemID: "immune-defense", title: "How Immune Recognition Works", summary: "How proteins participate in recognition, signaling, and coordinated defense.", steps: [
+                EducationStep(id: "display", title: "Cells display molecular signals", body: "Surface proteins can present or expose molecular information that immune cells inspect.", symbol: "rectangle.grid.2x2"),
+                EducationStep(id: "recognize", title: "Receptors detect patterns", body: "Immune receptors bind specific molecular features and help distinguish context.", symbol: "scope"),
+                EducationStep(id: "communicate", title: "Signals coordinate response", body: "Cytokines and signaling proteins help immune cells communicate and organize activity.", symbol: "bubble.left.and.bubble.right"),
+                EducationStep(id: "resolve", title: "Control mechanisms limit activity", body: "Regulatory proteins help keep immune signaling proportional and time-limited.", symbol: "slider.horizontal.3")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "neural-signals", systemID: "nervous-system", title: "How Neural Signals Work", summary: "How receptors, ion channels, and transporters support signal transmission.", steps: [
+                EducationStep(id: "resting", title: "Channels set electrical state", body: "Ion channels and pumps help establish the electrical gradients neurons use for signaling.", symbol: "bolt.horizontal.circle"),
+                EducationStep(id: "trigger", title: "Signals change membrane voltage", body: "Opening specific channels changes ion flow and can trigger an electrical impulse.", symbol: "waveform"),
+                EducationStep(id: "synapse", title: "Synapses pass information", body: "Neurotransmitter receptors and transporters help carry signals between cells.", symbol: "point.3.connected.trianglepath.dotted"),
+                EducationStep(id: "reset", title: "Cells reset for the next signal", body: "Transport proteins help restore gradients and clear signaling molecules after transmission.", symbol: "arrow.counterclockwise.circle")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "hormone-signaling", systemID: "endocrine", title: "How Hormone Signaling Works", summary: "How receptors relay endocrine messages across tissues.", steps: [
+                EducationStep(id: "release", title: "Hormones enter circulation", body: "Endocrine tissues release hormones that can travel through blood to distant targets.", symbol: "drop.circle"),
+                EducationStep(id: "bind", title: "Receptors recognize the signal", body: "Target cells respond when hormone molecules bind compatible receptor proteins.", symbol: "target"),
+                EducationStep(id: "relay", title: "Cells relay the message", body: "Receptor activation can trigger intracellular signaling pathways or gene regulation.", symbol: "arrow.triangle.branch"),
+                EducationStep(id: "feedback", title: "Feedback adjusts output", body: "Feedback loops help tune hormone production and response over time.", symbol: "arrow.triangle.2.circlepath")
+            ], sourceIDs: ["uniprot"]),
+            EducationModule(id: "fluid-balance", systemID: "renal", title: "How Fluid Balance Works", summary: "How channels and transporters support kidney water and salt handling.", steps: [
+                EducationStep(id: "filter", title: "Blood is filtered", body: "Kidney structures filter fluid and small molecules while retaining many larger blood components.", symbol: "line.3.horizontal.decrease.circle"),
+                EducationStep(id: "recover", title: "Useful molecules are reclaimed", body: "Transporters help recover water, salts, and nutrients that the body can reuse.", symbol: "arrow.uturn.backward.circle"),
+                EducationStep(id: "tune", title: "Channels tune water movement", body: "Aquaporins and ion channels help adjust water and electrolyte movement across membranes.", symbol: "drop.degreesign"),
+                EducationStep(id: "balance", title: "Output reflects many signals", body: "Fluid balance depends on hormones, circulation, intake, and kidney transporter activity.", symbol: "scale.3d")
+            ], sourceIDs: ["uniprot"])
         ]
 
         return KnowledgeGraph(systems: systems, pathways: pathways, proteins: proteins, modules: modules, sources: sources)
     }
 
     private static func protein(_ name: String, _ gene: String, _ accession: String, _ function: String, _ location: String, _ systems: [String], _ molecularFunction: String, _ type: String) -> Protein {
-        Protein(name: name, geneSymbol: gene, uniprotAccession: accession, organism: "Homo sapiens", functionSummary: function, cellularLocation: location, systems: systems, molecularFunction: molecularFunction, proteinType: type, alphaFoldAvailable: true, healthContextSummary: "HealthKit context can make this topic relevant to explore, but Molecular You does not measure this protein in your body.", sourceIDs: ["uniprot", "alphafold", "app-authored"])
+        Protein(name: name, geneSymbol: gene, uniprotAccession: accession, organism: "Homo sapiens", functionSummary: function, cellularLocation: location, systems: systems, molecularFunction: molecularFunction, proteinType: type, alphaFoldAvailable: true, healthContextSummary: "HealthKit context can make this topic relevant to explore, but Molecyou does not measure this protein in your body.", sourceIDs: ["uniprot", "alphafold"])
     }
 }

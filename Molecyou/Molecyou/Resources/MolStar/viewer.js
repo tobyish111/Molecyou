@@ -41,9 +41,9 @@ async function ensureViewer() {
       viewportShowTrajectoryControls: false,
       viewportShowExpand: false,
       viewportShowScreenshotControls: false,
-      viewportBackgroundColor: 0x020617,
-      illumination: true,
-      pixelScale: Math.min(window.devicePixelRatio || 1, 2)
+      viewportBackgroundColor: '#020617',
+      illumination: false,
+      pixelScale: Math.min(window.devicePixelRatio || 1, 1.35)
     }).then(createdViewer => {
       viewer = createdViewer;
       postEvent('ready');
@@ -70,6 +70,13 @@ async function ensureViewer() {
   return viewerPromise;
 }
 
+async function clearViewer() {
+  if (!viewer || !viewer.plugin) return;
+  if (typeof viewer.plugin.clear === 'function') {
+    await viewer.plugin.clear();
+  }
+}
+
 function decodeStructure(payload) {
   const binary = atob(payload.dataBase64);
   const bytes = new Uint8Array(binary.length);
@@ -83,19 +90,25 @@ function makeObjectUrl(mmcif) {
   return currentObjectUrl;
 }
 
-async function clearViewer() {
-  if (!viewer || !viewer.plugin) return;
-  if (typeof viewer.plugin.clear === 'function') {
-    await viewer.plugin.clear();
-  }
+async function loadStructureFromSource(source, payload) {
+  await viewer.loadStructureFromUrl(source, payload.format || 'mmcif', false, {
+    label: `${payload.name || payload.accession || 'AlphaFold reference'} (${payload.accession || 'AFDB'})`
+  });
+}
+
+async function loadStructureFromData(payload) {
+  const label = `${payload.name || payload.accession || 'AlphaFold reference'} (${payload.accession || 'AFDB'})`;
+  await viewer.loadStructureFromData(decodeStructure(payload), payload.format || 'mmcif', {
+    dataLabel: label
+  });
 }
 
 async function loadStructure(payload) {
   currentPayload = payload;
-  if (!payload || !payload.dataBase64) {
+  if (!payload || (!payload.url && !payload.dataBase64)) {
     setLoading(false);
-    setStatus('No structure data was provided');
-    postEvent('failed', { message: 'No structure data was provided' });
+    setStatus('No structure file was provided');
+    postEvent('failed', { message: 'No structure file was provided' });
     return;
   }
 
@@ -109,15 +122,19 @@ async function loadStructure(payload) {
     setLoading(true, `Loading ${payload.name || payload.accession || 'protein'} from AlphaFold DB`);
     setStatus('Parsing mmCIF structure');
 
-    const mmcif = decodeStructure(payload);
-    const objectUrl = makeObjectUrl(mmcif);
     await clearViewer();
 
-    await viewer.loadStructureFromUrl(objectUrl, payload.format || 'mmcif', false, {
-      label: `${payload.name || payload.accession || 'AlphaFold reference'} (${payload.accession || 'AFDB'})`
-    });
+    try {
+      if (!payload.url) throw new Error('No readable mmCIF file URL was provided');
+      await loadStructureFromSource(payload.url, payload);
+    } catch (fileError) {
+      if (!payload.dataBase64) throw fileError;
+      setStatus('Retrying from in-memory mmCIF data');
+      await clearViewer();
+      await loadStructureFromData(payload);
+    }
 
-    requestCameraReset();
+    fitStructureToViewport();
     setLoading(false);
     setStatus(`${payload.name || 'Protein'} rendered from cached AlphaFold mmCIF`);
     postEvent('loaded', { name: payload.name || '', accession: payload.accession || '', source: payload.url || '' });
@@ -132,11 +149,19 @@ async function loadStructure(payload) {
 function requestCameraReset() {
   try {
     if (viewer && viewer.plugin && viewer.plugin.canvas3d && typeof viewer.plugin.canvas3d.requestCameraReset === 'function') {
+      if (typeof viewer.handleResize === 'function') viewer.handleResize();
       viewer.plugin.canvas3d.requestCameraReset();
     }
   } catch (error) {
     postEvent('warning', { message: String(error && error.message ? error.message : error) });
   }
+}
+
+function fitStructureToViewport() {
+  requestCameraReset();
+  window.requestAnimationFrame(() => requestCameraReset());
+  window.setTimeout(() => requestCameraReset(), 250);
+  window.setTimeout(() => requestCameraReset(), 800);
 }
 
 async function reloadCurrentStructure() {
@@ -184,7 +209,15 @@ function applyCommand(command) {
 }
 
 window.MolecularYou = { loadStructure, command: applyCommand, reloadCurrentStructure };
+
+const pendingLoads = window.MolecularYouLoadQueue || [];
+window.MolecularYouLoadQueue = [];
+pendingLoads.forEach(payload => loadStructure(payload));
+
+const pendingCommands = window.MolecularYouCommandQueue || [];
+window.MolecularYouCommandQueue = [];
+pendingCommands.forEach(command => applyCommand(command));
+
 window.addEventListener('resize', () => { if (viewer && typeof viewer.handleResize === 'function') viewer.handleResize(); });
 window.addEventListener('beforeunload', () => { if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl); });
-
 ensureViewer();

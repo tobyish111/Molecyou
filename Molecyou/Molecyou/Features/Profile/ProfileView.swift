@@ -52,7 +52,7 @@ struct ProfileView: View {
                 } label: { Label("Clear cached structures", systemImage: "trash") }
             }
             Section("About") {
-                Text("Molecular You")
+                Text("Molecyou")
                 Text("Version 1.0")
                 Text(Disclaimer.text).font(.footnote).foregroundStyle(.secondary)
                 Button(role: .destructive) {

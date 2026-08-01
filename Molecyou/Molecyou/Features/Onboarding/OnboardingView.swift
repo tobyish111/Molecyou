@@ -42,7 +42,7 @@ struct OnboardingView: View {
     private var welcome: some View {
         OnboardingPage {
             MolecularLogo(size: 78)
-            Text("Molecular You")
+            Text("Molecyou")
                 .font(.largeTitle.bold())
             Text("Understand your health from the molecular level.")
                 .font(.title.bold())
@@ -126,7 +126,7 @@ struct OnboardingView: View {
                 .foregroundStyle(.pink)
             Text("Connect HealthKit")
                 .font(.title.bold())
-            Text("Molecular You asks for read-only access to workouts, active energy, heart-rate summaries, sleep, respiratory rate, oxygen saturation, and VO2 max when available. These categories recommend educational topics only.")
+            Text("Molecyou asks for read-only access to workouts, active energy, heart-rate summaries, sleep, respiratory rate, oxygen saturation, and VO2 max when available. These categories recommend educational topics only.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white.opacity(0.8))
             VStack(alignment: .leading, spacing: 10) {
@@ -171,13 +171,13 @@ struct OnboardingView: View {
             Text("You can update interests, privacy choices, cache, and demonstration mode from Profile.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white.opacity(0.75))
-            Button("Enter Molecular You") {
+            Button("Enter Molecyou") {
                 environment.analytics.track(AnalyticsEvent(name: "onboarding_completed", properties: ["demo": String(demonstrationMode)]))
                 hasCompletedOnboarding = true
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .accessibilityIdentifier("Enter Molecular You")
+            .accessibilityIdentifier("Enter Molecyou")
         }
     }
 }
@@ -224,7 +224,7 @@ private struct FeatureRow: View {
 }
 
 enum Disclaimer {
-    static let text = "Molecular You provides educational information about human biology and reference protein structures. It does not diagnose, treat, cure, or prevent medical conditions and does not measure molecular activity inside your body. Contact a qualified healthcare professional regarding medical questions."
+    static let text = "Molecyou provides educational information about human biology and reference protein structures. It does not diagnose, treat, cure, or prevent medical conditions and does not measure molecular activity inside your body. Contact a qualified healthcare professional regarding medical questions."
 }
 
 #Preview("Onboarding") {

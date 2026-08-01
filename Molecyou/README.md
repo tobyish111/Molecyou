@@ -1,6 +1,6 @@
-# Molecular You
+# Molecyou
 
-Molecular You is a SwiftUI iOS and iPadOS app for learning the biology behind health, fitness, sleep, and activity. It uses HealthKit categories only to recommend educational topics, then connects those topics to curated systems, proteins, and public AlphaFold DB reference structures.
+Molecyou is a SwiftUI iOS and iPadOS app for learning the biology behind health, fitness, sleep, and activity. It uses HealthKit categories only to recommend educational topics, then connects those topics to curated systems, proteins, and public AlphaFold DB reference structures.
 
 ## Prerequisites
 
@@ -17,8 +17,8 @@ Because Xcode was open, project-file edits were intentionally not applied by Cod
 
 - Swift Language Version: Swift 6
 - HealthKit capability
-- `NSHealthShareUsageDescription`: `Molecular You reads workout, activity, sleep, heart-related, respiratory, oxygen saturation, and cardio fitness categories to recommend educational biology topics. HealthKit data stays on this device and is never used for advertising.`
-- `NSHealthUpdateUsageDescription`: `Molecular You does not write HealthKit data.`
+- `NSHealthShareUsageDescription`: `Molecyou reads workout, activity, sleep, heart-related, respiratory, oxygen saturation, and cardio fitness categories to recommend educational biology topics. HealthKit data stays on this device and is never used for advertising.`
+- `NSHealthUpdateUsageDescription`: `Molecyou does not write HealthKit data.`
 - Code signing entitlements file: `Molecyou.entitlements`
 
 ## Demo Mode
@@ -27,7 +27,7 @@ Onboarding defaults to demonstration mode. Demo snapshots are explicitly labeled
 
 ## Physical Device
 
-Run on a device with HealthKit available, complete onboarding, disable demonstration mode, and use the HealthKit authorization screen. Molecular You requests read-only access to workouts, active energy, heart-rate summaries, sleep, respiratory rate, oxygen saturation, and VO2 max when available.
+Run on a device with HealthKit available, complete onboarding, disable demonstration mode, and use the HealthKit authorization screen. Molecyou requests read-only access to workouts, active energy, heart-rate summaries, sleep, respiratory rate, oxygen saturation, and VO2 max when available.
 
 ## AlphaFold DB
 

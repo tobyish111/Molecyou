@@ -1,6 +1,6 @@
 # Privacy
 
-Molecular You is designed around local HealthKit processing.
+Molecyou is designed around local HealthKit processing.
 
 - Raw HealthKit measurements stay on-device.
 - HealthKit access is optional and read-only.
@@ -12,4 +12,4 @@ Molecular You is designed around local HealthKit processing.
 
 Medical limitation:
 
-Molecular You provides educational information about human biology and reference protein structures. It does not diagnose, treat, cure, or prevent medical conditions and does not measure molecular activity inside your body. Contact a qualified healthcare professional regarding medical questions.
+Molecyou provides educational information about human biology and reference protein structures. It does not diagnose, treat, cure, or prevent medical conditions and does not measure molecular activity inside your body. Contact a qualified healthcare professional regarding medical questions.

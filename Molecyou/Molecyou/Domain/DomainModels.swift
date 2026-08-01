@@ -99,6 +99,7 @@ struct HealthSnapshot: Sendable, Equatable {
     let generatedAt: Date
     let isDemo: Bool
     let workoutsThisWeek: Int?
+    let workoutTypesThisWeek: [String]
     let activeEnergyThisWeek: Measurement<UnitEnergy>?
     let averageWorkoutHeartRate: Measurement<UnitFrequency>?
     let restingHeartRate: Measurement<UnitFrequency>?
@@ -164,6 +165,7 @@ enum MolecularViewerCommand: Codable, Sendable, Equatable {
     case setRepresentation(RepresentationType)
     case setColorMode(ColorMode)
     case focusResidue(chainID: String, sequenceNumber: Int)
+    case focusRegion(chainID: String, startSequenceNumber: Int, endSequenceNumber: Int, label: String)
     case toggleLabels(Bool)
 }
 

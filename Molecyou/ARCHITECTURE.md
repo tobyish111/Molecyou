@@ -1,6 +1,6 @@
 # Architecture
 
-Molecular You uses a feature-based SwiftUI architecture with explicit domain boundaries.
+Molecyou uses a feature-based SwiftUI architecture with explicit domain boundaries.
 
 - `App`: app shell, dependency injection, root routing, and tab stacks.
 - `Domain`: value models, starter graph, search, health-context engine, formatters.

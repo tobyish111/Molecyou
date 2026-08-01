@@ -53,7 +53,7 @@ struct MolecularLogo: View {
             .stroke(Color.white.opacity(0.65), lineWidth: max(1.2, size * 0.035))
         }
         .frame(width: size, height: size)
-        .accessibilityLabel("Molecular You logo")
+        .accessibilityLabel("Molecyou logo")
     }
 
     private func nodeOffset(_ index: Int) -> CGSize {
@@ -144,7 +144,66 @@ struct RelevanceBadge: View {
 
 extension View {
     func moleculeScreenBackground() -> some View {
-        background(Color.myBackground.ignoresSafeArea())
+        background(MoleculePageBackground().ignoresSafeArea())
+    }
+}
+
+struct MoleculePageBackground: View {
+    var body: some View {
+        ZStack {
+            Color.myBackground
+            LinearGradient(
+                colors: [
+                    Color.cyan.opacity(0.10),
+                    Color.clear,
+                    Color.pink.opacity(0.08)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            MoleculeBackgroundCanvas()
+                .opacity(0.34)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct MoleculeBackgroundCanvas: View {
+    var body: some View {
+        Canvas { context, size in
+            let points = [
+                CGPoint(x: size.width * 0.12, y: size.height * 0.12),
+                CGPoint(x: size.width * 0.34, y: size.height * 0.18),
+                CGPoint(x: size.width * 0.74, y: size.height * 0.10),
+                CGPoint(x: size.width * 0.88, y: size.height * 0.32),
+                CGPoint(x: size.width * 0.18, y: size.height * 0.54),
+                CGPoint(x: size.width * 0.48, y: size.height * 0.48),
+                CGPoint(x: size.width * 0.78, y: size.height * 0.66),
+                CGPoint(x: size.width * 0.28, y: size.height * 0.84),
+                CGPoint(x: size.width * 0.62, y: size.height * 0.90)
+            ]
+
+            var path = Path()
+            for index in points.indices.dropLast() {
+                path.move(to: points[index])
+                path.addLine(to: points[index + 1])
+            }
+            path.move(to: points[1])
+            path.addLine(to: points[5])
+            path.move(to: points[5])
+            path.addLine(to: points[8])
+
+            context.stroke(path, with: .color(Color.myAccent.opacity(0.12)), lineWidth: 1.2)
+
+            let colors: [Color] = [.cyan, .purple, .pink, .mint, .blue]
+            for (index, point) in points.enumerated() {
+                let radius: CGFloat = index.isMultiple(of: 2) ? 3.8 : 2.8
+                context.fill(
+                    Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
+                    with: .color(colors[index % colors.count].opacity(0.22))
+                )
+            }
+        }
     }
 }
 

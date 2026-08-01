@@ -9,7 +9,7 @@ struct MolecyouApp: App {
         do {
             modelContainer = try ModelContainer(for: MolecularYouSchema.schema)
         } catch {
-            fatalError("Unable to create Molecular You persistence container: \(error.localizedDescription)")
+            fatalError("Unable to create Molecyou persistence container: \(error.localizedDescription)")
         }
     }
 

@@ -50,12 +50,21 @@ final class KnowledgeGraphStore {
         system.proteinAccessions.compactMap(protein(accession:))
     }
 
+    func proteins(for module: EducationModule) -> [Protein] {
+        guard let system = system(id: module.systemID) else { return [] }
+        return proteins(for: system)
+    }
+
     func modules(for system: BiologicalSystem) -> [EducationModule] {
         system.moduleIDs.compactMap(module(id:))
     }
 
     func sources(for protein: Protein) -> [SourceReference] {
         protein.sourceIDs.compactMap { id in sources.first { $0.id == id } }
+    }
+
+    func sources(for module: EducationModule) -> [SourceReference] {
+        module.sourceIDs.compactMap { id in sources.first { $0.id == id } }
     }
 
     func search(_ query: String, filters: SearchFilters = SearchFilters(), savedAccessions: Set<String> = [], downloadedAccessions: Set<String> = []) -> [SearchResult] {

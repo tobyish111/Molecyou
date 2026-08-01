@@ -39,13 +39,7 @@ struct TodayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: MYSpacing.lg) {
                 header
-                if viewModel.snapshot.isDemo {
-                    Label("Demonstration data", systemImage: "sparkles")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.blue.opacity(0.14), in: Capsule())
-                }
+                TodayDataStatusBadge(snapshot: viewModel.snapshot)
                 highlights
                 systemsInFocus
                 ActivitySummaryCard(snapshot: viewModel.snapshot)
@@ -74,7 +68,7 @@ struct TodayView: View {
         VStack(alignment: .leading, spacing: MYSpacing.md) {
             SectionTitle(title: "Today’s Highlights")
             NavigationLink(value: AppRoute.system("oxygen-transport")) {
-                HighlightCard(title: "Cardiovascular", subtitle: "Your recent activity makes oxygen transport interesting to explore.", symbol: "heart.fill", gradient: MYGradient.oxygen)
+                HighlightCard(title: "Cardiovascular", subtitle: "Oxygen transport is an important system to explore in human physiology.", symbol: "heart.fill", gradient: MYGradient.oxygen)
             }
             .buttonStyle(.plain)
             HStack(spacing: MYSpacing.md) {
@@ -98,9 +92,48 @@ struct TodayView: View {
                         SystemFocusRow(system: system, recommendation: recommendation)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("SystemFocus \(system.id)")
                 }
             }
         }
+    }
+}
+
+struct TodayDataStatusBadge: View {
+    let snapshot: HealthSnapshot
+
+    private var hasAnyRealValue: Bool {
+        snapshot.workoutsThisWeek != nil || snapshot.activeEnergyThisWeek != nil || snapshot.averageWorkoutHeartRate != nil || snapshot.restingHeartRate != nil || snapshot.averageSleepDuration != nil || snapshot.respiratoryRate != nil || snapshot.oxygenSaturation != nil || snapshot.vo2Max != nil
+    }
+
+    var body: some View {
+        Label(title, systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(color.opacity(0.14), in: Capsule())
+            .foregroundStyle(color)
+            .accessibilityIdentifier(identifier)
+    }
+
+    private var title: String {
+        if snapshot.isDemo { return "Demonstration data" }
+        return hasAnyRealValue ? "HealthKit data linked" : "No HealthKit data linked"
+    }
+
+    private var symbol: String {
+        if snapshot.isDemo { return "sparkles" }
+        return hasAnyRealValue ? "heart.text.square" : "heart.slash"
+    }
+
+    private var color: Color {
+        if snapshot.isDemo { return .blue }
+        return hasAnyRealValue ? .green : .orange
+    }
+
+    private var identifier: String {
+        if snapshot.isDemo { return "Today Demo Data" }
+        return hasAnyRealValue ? "Today Linked Health Data" : "Today No Health Data"
     }
 }
 
@@ -194,20 +227,61 @@ struct MetricTile: View {
     let title: String
     let value: String
 
+    private var color: Color {
+        switch symbol {
+        case "figure.run": .mint
+        case "figure.mixed.cardio": .blue
+        case "flame": .orange
+        case "heart": .pink
+        case "moon": .purple
+        case "lungs": .cyan
+        default: .myAccent
+        }
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
-                .foregroundStyle(Color.myAccent)
-                .frame(width: 28)
+                .foregroundStyle(color)
+                .frame(width: 30, height: 30)
+                .background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: MYRadius.sm, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption).foregroundStyle(.secondary)
-                Text(value).font(.headline)
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if symbol == "figure.mixed.cardio" {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        Text(value)
+                            .font(.headline)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    .frame(height: 24)
+                    .accessibilityLabel(value)
+                } else {
+                    Text(value)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
             }
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: MYRadius.md))
+        .frame(maxWidth: .infinity, minHeight: 66, maxHeight: 66, alignment: .leading)
+        .background {
+            ZStack(alignment: .topTrailing) {
+                Color(.tertiarySystemGroupedBackground)
+                LinearGradient(colors: [color.opacity(0.14), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: MYRadius.md))
+        }
+        .overlay(RoundedRectangle(cornerRadius: MYRadius.md).stroke(color.opacity(0.12), lineWidth: 1))
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+        .accessibilityIdentifier("Metric \(title)")
     }
 }
 

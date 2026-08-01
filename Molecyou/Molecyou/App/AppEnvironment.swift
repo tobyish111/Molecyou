@@ -30,14 +30,34 @@ final class AppEnvironment {
         self.analytics = analytics
     }
 
-    static func live(modelContext: ModelContext) -> AppEnvironment {
+    static func live(modelContext: ModelContext, demonstrationMode: Bool) -> AppEnvironment {
         let graph = KnowledgeGraphStore.loadBundled()
         let cache = StructureCache()
+        let arguments = Set(ProcessInfo.processInfo.arguments)
+        let healthProvider: any HealthDataProviding
+        let alphaFoldClient: any AlphaFoldDBProviding
+
+        if arguments.contains("UITestLinkedHealthData") {
+            healthProvider = LinkedHealthDataPreviewProvider()
+        } else if arguments.contains("UITestNoHealthData") {
+            healthProvider = EmptyHealthDataProvider()
+        } else if demonstrationMode {
+            healthProvider = DemoHealthDataProvider()
+        } else {
+            healthProvider = HealthKitManager()
+        }
+
+        if arguments.contains("UITestPreviewAlphaFold") {
+            alphaFoldClient = PreviewAlphaFoldDBClient()
+        } else {
+            alphaFoldClient = AlphaFoldDBClient(structureCache: cache)
+        }
+
         return AppEnvironment(
             knowledgeGraph: graph,
-            healthProvider: HealthKitManager(),
+            healthProvider: healthProvider,
             contextEngine: DefaultHealthContextEngine(),
-            alphaFoldClient: AlphaFoldDBClient(structureCache: cache),
+            alphaFoldClient: alphaFoldClient,
             structureCache: cache,
             libraryRepository: SwiftDataLibraryRepository(modelContext: modelContext),
             analytics: NoOpAnalyticsTracker()

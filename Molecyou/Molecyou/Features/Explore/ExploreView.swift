@@ -6,6 +6,8 @@ struct ExploreView: View {
     @State private var selectedSystemID: String?
     @State private var savedOnly = false
     @State private var downloadedOnly = false
+    @State private var healthSnapshot = HealthSnapshot.empty(isDemo: true)
+    @State private var healthRecommendations: [HealthContextRecommendation] = []
 
     private var filters: SearchFilters {
         SearchFilters(systemID: selectedSystemID, savedOnly: savedOnly, downloadedOnly: downloadedOnly)
@@ -15,14 +17,23 @@ struct ExploreView: View {
         environment.knowledgeGraph.search(query, filters: filters, savedAccessions: environment.libraryRepository.savedProteinAccessions, downloadedAccessions: environment.libraryRepository.downloadedProteinAccessions)
     }
 
+    private var activityModules: [EducationModule] {
+        let recommendedModules = healthRecommendations.flatMap { recommendation -> [EducationModule] in
+            guard let system = environment.knowledgeGraph.system(id: recommendation.systemID) else { return [] }
+            return environment.knowledgeGraph.modules(for: system)
+        }
+        let fallbackModules = recommendedModules.isEmpty ? Array(environment.knowledgeGraph.modules.prefix(4)) : recommendedModules
+        var seenModuleIDs = Set<String>()
+        return fallbackModules.filter { seenModuleIDs.insert($0.id).inserted }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MYSpacing.lg) {
                 filterBar
                 if query.isEmpty && selectedSystemID == nil && !savedOnly && !downloadedOnly {
-                    featured
-                    trending
-                    browseFunctions
+                    systemsSection
+                    activityBasedModules
                 } else if results.isEmpty {
                     ErrorStateView(title: "No results", message: "Try a different protein, system, pathway, or filter.", actionTitle: "Clear filters") { clearFilters() }
                         .frame(minHeight: 360)
@@ -36,6 +47,7 @@ struct ExploreView: View {
         .searchable(text: $query, prompt: "Search proteins and systems")
         .moleculeScreenBackground()
         .onAppear { environment.libraryRepository.refresh() }
+        .task { await loadActivityRecommendations() }
     }
 
     private var filterBar: some View {
@@ -47,7 +59,14 @@ struct ExploreView: View {
                         Button(system.name) { selectedSystemID = system.id }
                     }
                 } label: {
-                    Label(selectedSystemID.flatMap { environment.knowledgeGraph.system(id: $0)?.name } ?? "System", systemImage: "line.3.horizontal.decrease.circle")
+                    Label {
+                        Text(selectedSystemID.flatMap { environment.knowledgeGraph.system(id: $0)?.name } ?? "System")
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(width: 118, alignment: .leading)
+                    } icon: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                    }
                 }
                 Toggle("Saved", isOn: $savedOnly).toggleStyle(.button)
                 Toggle("Downloaded", isOn: $downloadedOnly).toggleStyle(.button)
@@ -57,11 +76,11 @@ struct ExploreView: View {
         }
     }
 
-    private var featured: some View {
+    private var systemsSection: some View {
         VStack(alignment: .leading, spacing: MYSpacing.md) {
-            SectionTitle(title: "Featured Systems")
+            SectionTitle(title: "Systems", detail: "Tap a system to open it")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
-                ForEach(environment.knowledgeGraph.systems.prefix(5)) { system in
+                ForEach(environment.knowledgeGraph.systems) { system in
                     NavigationLink(value: AppRoute.system(system.id)) {
                         FeaturedSystemCard(system: system)
                     }
@@ -71,30 +90,18 @@ struct ExploreView: View {
         }
     }
 
-    private var trending: some View {
+    private var activityBasedModules: some View {
         VStack(alignment: .leading, spacing: MYSpacing.md) {
-            SectionTitle(title: "Trending Educational Topics")
-            ForEach(environment.knowledgeGraph.modules.prefix(4)) { module in
+            SectionTitle(title: "Based on Your Activity", detail: healthSnapshot.isDemo ? "Demo data" : nil)
+            ForEach(activityModules) { module in
                 NavigationLink(value: AppRoute.functionModule(module.id)) {
-                    SearchRow(symbol: "book.pages", title: module.title, subtitle: module.summary)
+                    ActivityModuleRow(
+                        module: module,
+                        system: environment.knowledgeGraph.system(id: module.systemID),
+                        evidence: healthSnapshot.matchingEvidence(for: module.systemID).first
+                    )
                 }
                 .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var browseFunctions: some View {
-        VStack(alignment: .leading, spacing: MYSpacing.md) {
-            SectionTitle(title: "Browse by Biological Function")
-            let functions = Array(Set(environment.knowledgeGraph.proteins.map(\.molecularFunction))).sorted().prefix(8)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
-                ForEach(Array(functions), id: \.self) { item in
-                    Text(item.capitalized)
-                        .font(.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(12)
-                        .background(Color.myPanel, in: RoundedRectangle(cornerRadius: MYRadius.md))
-                }
             }
         }
     }
@@ -126,20 +133,96 @@ struct ExploreView: View {
         savedOnly = false
         downloadedOnly = false
     }
+
+    private func loadActivityRecommendations() async {
+        let snapshot = await environment.healthProvider.snapshot()
+        healthSnapshot = snapshot
+        healthRecommendations = environment.contextEngine.evaluate(snapshot: snapshot, interests: Set(UserInterest.allCases))
+    }
 }
 
 struct FeaturedSystemCard: View {
     let system: BiologicalSystem
+    var isHighlighted = false
+
+    private var colors: [Color] {
+        let systemColors = system.accentColors.compactMap(Color.init(hex:))
+        return systemColors.isEmpty ? [Color.myAccent, .cyan] : systemColors
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MYSpacing.md) {
-            GradientIcon(symbol: system.icon, colors: system.accentColors.compactMap(Color.init(hex:)))
+            HStack(alignment: .top) {
+                GradientIcon(symbol: system.icon, colors: colors)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 6)
+            }
             Text(system.name).font(.headline)
             Text(system.shortDescription).font(.caption).foregroundStyle(.secondary).lineLimit(2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 142, alignment: .leading)
         .padding(MYSpacing.md)
-        .background(Color.myPanel, in: RoundedRectangle(cornerRadius: MYRadius.lg, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: MYRadius.lg, style: .continuous)
+                .fill(Color.myPanel)
+                .overlay(alignment: .topLeading) {
+                    LinearGradient(colors: colors.map { $0.opacity(0.18) } + [.clear], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .clipShape(RoundedRectangle(cornerRadius: MYRadius.lg, style: .continuous))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: MYRadius.lg, style: .continuous)
+                        .stroke(isHighlighted ? (colors.first ?? Color.myAccent) : Color.primary.opacity(0.08), lineWidth: isHighlighted ? 2 : 1)
+                }
+        }
+        .shadow(color: (isHighlighted ? (colors.first ?? Color.myAccent) : .black).opacity(isHighlighted ? 0.18 : 0.05), radius: isHighlighted ? 18 : 8, x: 0, y: isHighlighted ? 10 : 4)
+    }
+}
+
+struct ActivityModuleRow: View {
+    let module: EducationModule
+    let system: BiologicalSystem?
+    let evidence: HealthContextEvidence?
+
+    private var colors: [Color] {
+        let systemColors = system?.accentColors.compactMap(Color.init(hex:)) ?? []
+        return systemColors.isEmpty ? [Color.myAccent, .cyan] : systemColors
+    }
+
+    var body: some View {
+        GlassCard {
+            HStack(alignment: .top, spacing: MYSpacing.md) {
+                GradientIcon(symbol: system?.icon ?? "book.pages", colors: colors)
+                VStack(alignment: .leading, spacing: MYSpacing.xs) {
+                    Text(module.title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(evidence?.detail ?? module.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                    Label(system?.name ?? "How it works", systemImage: evidence?.symbol ?? "book.pages")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(colors.first ?? Color.myAccent)
+                        .padding(.top, 2)
+                }
+                Spacer(minLength: MYSpacing.sm)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+        .background {
+            LinearGradient(
+                colors: colors.map { $0.opacity(0.10) } + [Color.clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: MYRadius.lg, style: .continuous))
+        }
     }
 }
 
