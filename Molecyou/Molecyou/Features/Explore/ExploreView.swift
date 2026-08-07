@@ -8,13 +8,23 @@ struct ExploreView: View {
     @State private var downloadedOnly = false
     @State private var healthSnapshot = HealthSnapshot.empty(isDemo: true)
     @State private var healthRecommendations: [HealthContextRecommendation] = []
+    @State private var results: [SearchResult] = []
 
     private var filters: SearchFilters {
         SearchFilters(systemID: selectedSystemID, savedOnly: savedOnly, downloadedOnly: downloadedOnly)
     }
 
-    private var results: [SearchResult] {
-        environment.knowledgeGraph.search(query, filters: filters, savedAccessions: environment.libraryRepository.savedProteinAccessions, downloadedAccessions: environment.libraryRepository.downloadedProteinAccessions)
+    /// Everything `search(_:)` depends on. Recompute results only when this changes,
+    /// instead of re-running the search on every unrelated body re-render.
+    private var searchKey: SearchInputsKey {
+        SearchInputsKey(
+            query: query,
+            systemID: selectedSystemID,
+            savedOnly: savedOnly,
+            downloadedOnly: downloadedOnly,
+            saved: environment.libraryRepository.savedProteinAccessions,
+            downloaded: environment.libraryRepository.downloadedProteinAccessions
+        )
     }
 
     private var activityModules: [EducationModule] {
@@ -46,7 +56,11 @@ struct ExploreView: View {
         .navigationTitle("Explore")
         .searchable(text: $query, prompt: "Search proteins and systems")
         .moleculeScreenBackground()
-        .onAppear { environment.libraryRepository.refresh() }
+        .onAppear {
+            environment.libraryRepository.refresh()
+            recomputeResults()
+        }
+        .onChange(of: searchKey) { _, _ in recomputeResults() }
         .task { await loadActivityRecommendations() }
     }
 
@@ -134,11 +148,31 @@ struct ExploreView: View {
         downloadedOnly = false
     }
 
+    private func recomputeResults() {
+        results = environment.knowledgeGraph.search(
+            query,
+            filters: filters,
+            savedAccessions: environment.libraryRepository.savedProteinAccessions,
+            downloadedAccessions: environment.libraryRepository.downloadedProteinAccessions
+        )
+    }
+
     private func loadActivityRecommendations() async {
         let snapshot = await environment.healthProvider.snapshot()
         healthSnapshot = snapshot
         healthRecommendations = environment.contextEngine.evaluate(snapshot: snapshot, interests: Set(UserInterest.allCases))
     }
+}
+
+/// Value-equatable snapshot of every input to `KnowledgeGraphStore.search`, used to drive
+/// `onChange` so results recompute only when a relevant input actually changes.
+private struct SearchInputsKey: Equatable {
+    let query: String
+    let systemID: String?
+    let savedOnly: Bool
+    let downloadedOnly: Bool
+    let saved: Set<String>
+    let downloaded: Set<String>
 }
 
 struct FeaturedSystemCard: View {

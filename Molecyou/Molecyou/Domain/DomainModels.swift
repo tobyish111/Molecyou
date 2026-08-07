@@ -76,12 +76,29 @@ struct EducationStep: Identifiable, Codable, Hashable, Sendable {
     let title: String
     let body: String
     let symbol: String
+    /// IDs into `KnowledgeGraph.sources` that back this specific step's claim.
+    let referenceIDs: [String]
+}
+
+extension EducationStep {
+    private enum CodingKeys: String, CodingKey { case id, title, body, symbol, referenceIDs }
+
+    // Custom decode so older data without `referenceIDs` still loads (defaults to empty).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        body = try container.decode(String.self, forKey: .body)
+        symbol = try container.decode(String.self, forKey: .symbol)
+        referenceIDs = try container.decodeIfPresent([String].self, forKey: .referenceIDs) ?? []
+    }
 }
 
 struct SourceReference: Identifiable, Codable, Hashable, Sendable {
     let id: String
     let title: String
     let publisher: String
+    let authors: String?
     let url: URL?
     let license: String?
     let reviewedDate: String

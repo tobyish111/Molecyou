@@ -9,6 +9,22 @@ final class KnowledgeGraphStore {
     let modules: [EducationModule]
     let sources: [SourceReference]
 
+    // O(1) lookup indexes built once at init. Keys are unique by DataIntegrityTests
+    // (no duplicate accessions / ids); `uniquingKeysWith` keeps the first to match the
+    // previous `.first { }` semantics defensively.
+    private let systemsByID: [String: BiologicalSystem]
+    private let proteinsByAccession: [String: Protein]
+    private let modulesByID: [String: EducationModule]
+    private let sourcesByID: [String: SourceReference]
+
+    // Search haystacks lowercased once at init so `search(_:)` doesn't re-lowercase every
+    // field of every item on each keystroke. Fields are joined with "\n" so a substring
+    // match can't span a field boundary (preserving the original per-field semantics).
+    private let systemHaystacks: [(item: BiologicalSystem, text: String)]
+    private let pathwayHaystacks: [(item: Pathway, text: String)]
+    private let proteinHaystacks: [(item: Protein, text: String)]
+    private let moduleHaystacks: [(item: EducationModule, text: String)]
+
     init(graph: KnowledgeGraph) {
         self.graph = graph
         self.systems = graph.systems
@@ -16,6 +32,14 @@ final class KnowledgeGraphStore {
         self.proteins = graph.proteins
         self.modules = graph.modules
         self.sources = graph.sources
+        self.systemsByID = Dictionary(graph.systems.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        self.proteinsByAccession = Dictionary(graph.proteins.map { ($0.uniprotAccession, $0) }, uniquingKeysWith: { first, _ in first })
+        self.modulesByID = Dictionary(graph.modules.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        self.sourcesByID = Dictionary(graph.sources.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        self.systemHaystacks = graph.systems.map { ($0, "\($0.name)\n\($0.shortDescription)".lowercased()) }
+        self.pathwayHaystacks = graph.pathways.map { ($0, "\($0.name)\n\($0.summary)".lowercased()) }
+        self.proteinHaystacks = graph.proteins.map { ($0, "\($0.name)\n\($0.geneSymbol)\n\($0.uniprotAccession)\n\($0.functionSummary)".lowercased()) }
+        self.moduleHaystacks = graph.modules.map { ($0, "\($0.title)\n\($0.summary)".lowercased()) }
     }
 
     static func loadBundled() -> KnowledgeGraphStore {
@@ -35,15 +59,15 @@ final class KnowledgeGraphStore {
     static let preview = KnowledgeGraphStore(graph: SeedKnowledgeGraph.make())
 
     func system(id: String) -> BiologicalSystem? {
-        systems.first { $0.id == id }
+        systemsByID[id]
     }
 
     func protein(accession: String) -> Protein? {
-        proteins.first { $0.uniprotAccession == accession }
+        proteinsByAccession[accession]
     }
 
     func module(id: String) -> EducationModule? {
-        modules.first { $0.id == id }
+        modulesByID[id]
     }
 
     func proteins(for system: BiologicalSystem) -> [Protein] {
@@ -67,37 +91,55 @@ final class KnowledgeGraphStore {
         module.sourceIDs.compactMap { id in sources.first { $0.id == id } }
     }
 
+    func source(id: String) -> SourceReference? {
+        sourcesByID[id]
+    }
+
+    func references(for step: EducationStep) -> [SourceReference] {
+        step.referenceIDs.compactMap(source(id:))
+    }
+
+    /// The distinct named references cited across all of a module's steps.
+    func stepReferences(for module: EducationModule) -> [SourceReference] {
+        var seen = Set<String>()
+        return module.steps
+            .flatMap(\.referenceIDs)
+            .filter { seen.insert($0).inserted }
+            .compactMap(source(id:))
+    }
+
     func search(_ query: String, filters: SearchFilters = SearchFilters(), savedAccessions: Set<String> = [], downloadedAccessions: Set<String> = []) -> [SearchResult] {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         var results: [SearchResult] = []
 
-        for system in systems where filters.systemID == nil || filters.systemID == system.id {
-            if normalized.isEmpty || system.name.lowercased().contains(normalized) || system.shortDescription.lowercased().contains(normalized) {
-                results.append(.system(system))
+        for entry in systemHaystacks where filters.systemID == nil || filters.systemID == entry.item.id {
+            if normalized.isEmpty || entry.text.contains(normalized) {
+                results.append(.system(entry.item))
             }
         }
 
-        for pathway in pathways where filters.systemID == nil || filters.systemID == pathway.systemID {
-            if normalized.isEmpty || pathway.name.lowercased().contains(normalized) || pathway.summary.lowercased().contains(normalized) {
-                results.append(.pathway(pathway))
+        for entry in pathwayHaystacks where filters.systemID == nil || filters.systemID == entry.item.systemID {
+            if normalized.isEmpty || entry.text.contains(normalized) {
+                results.append(.pathway(entry.item))
             }
         }
 
-        for protein in proteins {
+        for entry in proteinHaystacks {
+            let protein = entry.item
             guard filters.systemID == nil || protein.systems.contains(filters.systemID ?? "") else { continue }
             guard filters.molecularFunction == nil || protein.molecularFunction == filters.molecularFunction else { continue }
             guard filters.proteinType == nil || protein.proteinType == filters.proteinType else { continue }
             guard !filters.savedOnly || savedAccessions.contains(protein.uniprotAccession) else { continue }
             guard !filters.downloadedOnly || downloadedAccessions.contains(protein.uniprotAccession) else { continue }
 
-            if normalized.isEmpty || [protein.name, protein.geneSymbol, protein.uniprotAccession, protein.functionSummary].contains(where: { $0.lowercased().contains(normalized) }) {
+            if normalized.isEmpty || entry.text.contains(normalized) {
                 results.append(.protein(protein))
             }
         }
 
-        for module in modules where filters.systemID == nil || filters.systemID == module.systemID {
-            if normalized.isEmpty || module.title.lowercased().contains(normalized) || module.summary.lowercased().contains(normalized) {
-                results.append(.module(module))
+        for entry in moduleHaystacks where filters.systemID == nil || filters.systemID == entry.item.systemID {
+            if normalized.isEmpty || entry.text.contains(normalized) {
+                results.append(.module(entry.item))
             }
         }
 

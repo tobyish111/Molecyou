@@ -531,12 +531,21 @@ struct FunctionExplanationView: View {
         environment.knowledgeGraph.proteins(for: module)
     }
 
+    /// Named references cited by the module's individual steps.
+    private var stepReferences: [SourceReference] {
+        environment.knowledgeGraph.stepReferences(for: module)
+    }
+
+    private var sourcesByID: [String: SourceReference] {
+        Dictionary(environment.knowledgeGraph.sources.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MYSpacing.lg) {
                 topicHeader
                 topicInformation
-                TopicStepTimeline(steps: module.steps)
+                TopicStepTimeline(steps: module.steps, sourcesByID: sourcesByID)
                 DisclaimerCard()
             }
             .padding(MYSpacing.md)
@@ -544,7 +553,7 @@ struct FunctionExplanationView: View {
         .navigationTitle(module.title)
         .moleculeScreenBackground()
         .sheet(isPresented: $showingSources) {
-            TopicSourcesSheet(module: module, sources: sources, proteins: citedProteins)
+            TopicSourcesSheet(module: module, sources: sources, references: stepReferences, proteins: citedProteins)
                 .presentationDetents([.medium, .large])
         }
     }
@@ -573,9 +582,12 @@ struct FunctionExplanationView: View {
     }
 
     private var formattedSources: String {
-        sources
-            .map(\.title)
-            .joined(separator: ", ")
+        // Compact summary for the tile; the full citation list lives in the sources sheet.
+        guard !stepReferences.isEmpty else {
+            return sources.map(\.title).joined(separator: ", ")
+        }
+        let referenceCount = stepReferences.count
+        return "UniProtKB + \(referenceCount) reference\(referenceCount == 1 ? "" : "s")"
     }
 }
 
@@ -631,6 +643,7 @@ private struct TopicInfoTile: View {
 private struct TopicSourcesSheet: View {
     let module: EducationModule
     let sources: [SourceReference]
+    let references: [SourceReference]
     let proteins: [Protein]
     @Environment(\.dismiss) private var dismiss
 
@@ -638,19 +651,17 @@ private struct TopicSourcesSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: MYSpacing.lg) {
-                    Text("These are the specific UniProtKB entries used as citations for this lesson's educational summary and steps.")
+                    Text("Each step in this lesson is footnoted to a named, peer-reviewed reference. Protein details are cited to their UniProtKB entries.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if proteins.isEmpty {
-                        LibraryEmptyCard(symbol: "checkmark.seal", title: "No specific citations", message: "This lesson has source metadata, but no protein-level citations are mapped in the local knowledge graph.")
-                    } else {
-                        LazyVStack(spacing: MYSpacing.sm) {
-                            ForEach(proteins) { protein in
-                                TopicProteinCitationCard(protein: protein, source: primaryUniProtSource)
-                            }
-                        }
+                    if !references.isEmpty {
+                        namedReferences
+                    }
+
+                    if !proteins.isEmpty {
+                        proteinCitations
                     }
 
                     if !sources.isEmpty {
@@ -674,9 +685,31 @@ private struct TopicSourcesSheet: View {
         sources.first { $0.id == "uniprot" } ?? sources.first
     }
 
+    private var namedReferences: some View {
+        VStack(alignment: .leading, spacing: MYSpacing.md) {
+            SectionTitle(title: "Cited References")
+            LazyVStack(spacing: MYSpacing.sm) {
+                ForEach(references) { reference in
+                    TopicSourceMetadataCard(source: reference)
+                }
+            }
+        }
+    }
+
+    private var proteinCitations: some View {
+        VStack(alignment: .leading, spacing: MYSpacing.md) {
+            SectionTitle(title: "Protein Citations")
+            LazyVStack(spacing: MYSpacing.sm) {
+                ForEach(proteins) { protein in
+                    TopicProteinCitationCard(protein: protein, source: primaryUniProtSource)
+                }
+            }
+        }
+    }
+
     private var sourceMetadata: some View {
         VStack(alignment: .leading, spacing: MYSpacing.md) {
-            SectionTitle(title: "Source Metadata")
+            SectionTitle(title: "Database Metadata")
             LazyVStack(spacing: MYSpacing.sm) {
                 ForEach(sources) { source in
                     TopicSourceMetadataCard(source: source)
@@ -750,6 +783,9 @@ private struct TopicSourceMetadataCard: View {
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 6) {
+                    if let authors = source.authors {
+                        CitationLine(title: "Authors", value: authors)
+                    }
                     CitationLine(title: "Reviewed", value: source.reviewedDate)
                     if let license = source.license {
                         CitationLine(title: "License", value: license)
@@ -787,6 +823,7 @@ private struct CitationLine: View {
 
 private struct TopicStepTimeline: View {
     let steps: [EducationStep]
+    let sourcesByID: [String: SourceReference]
 
     var body: some View {
         VStack(alignment: .leading, spacing: MYSpacing.md) {
@@ -796,7 +833,7 @@ private struct TopicStepTimeline: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
-                        TopicStepRow(index: index, step: step, isLast: index == steps.count - 1)
+                        TopicStepRow(index: index, step: step, isLast: index == steps.count - 1, references: references(for: step))
                     }
                 }
                 .padding(.vertical, MYSpacing.sm)
@@ -805,12 +842,17 @@ private struct TopicStepTimeline: View {
             }
         }
     }
+
+    private func references(for step: EducationStep) -> [SourceReference] {
+        step.referenceIDs.compactMap { sourcesByID[$0] }
+    }
 }
 
 private struct TopicStepRow: View {
     let index: Int
     let step: EducationStep
     let isLast: Bool
+    let references: [SourceReference]
 
     private var color: Color {
         [.myAccent, .cyan, .mint, .pink, .orange][index % 5]
@@ -831,7 +873,7 @@ private struct TopicStepRow: View {
                 if !isLast {
                     Rectangle()
                         .fill(color.opacity(0.24))
-                        .frame(width: 2, height: 48)
+                        .frame(width: 2, height: references.isEmpty ? 48 : 64)
                 }
             }
 
@@ -843,6 +885,9 @@ private struct TopicStepRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                ForEach(references) { reference in
+                    StepReferenceFootnote(reference: reference, color: color)
+                }
             }
             .padding(.bottom, isLast ? 0 : MYSpacing.lg)
 
@@ -851,6 +896,41 @@ private struct TopicStepRow: View {
         .padding(.horizontal, MYSpacing.md)
         .padding(.top, index == 0 ? MYSpacing.sm : 0)
         .padding(.bottom, isLast ? MYSpacing.sm : 0)
+    }
+}
+
+private struct StepReferenceFootnote: View {
+    let reference: SourceReference
+    let color: Color
+
+    private var label: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "text.book.closed")
+                .font(.caption2)
+            Text(reference.title)
+                .font(.caption2)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
+            if reference.url != nil {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12), in: Capsule())
+    }
+
+    var body: some View {
+        Group {
+            if let url = reference.url {
+                Link(destination: url) { label }
+            } else {
+                label
+            }
+        }
+        .accessibilityLabel("Source: \(reference.title)\(reference.authors.map { ", \($0)" } ?? "")")
     }
 }
 
