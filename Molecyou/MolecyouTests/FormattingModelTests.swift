@@ -153,4 +153,23 @@ struct FormattingModelTests {
         #expect(model.snapshot.workoutsThisWeek == nil)
         #expect(model.recommendations.first?.relevance == .general)
     }
+
+    // MARK: AppEnvironment health re-link
+
+    @MainActor
+    @Test func invalidatingHealthDataBumpsRefreshID() {
+        let environment = AppEnvironment.preview
+        let before = environment.healthRefreshID
+        environment.invalidateHealthData()
+        #expect(environment.healthRefreshID == before + 1)
+    }
+
+    @MainActor
+    @Test func requestingHealthAuthorizationReturnsStateAndInvalidates() async {
+        let environment = AppEnvironment.preview // preview provider grants access
+        let before = environment.healthRefreshID
+        let state = await environment.requestHealthAuthorization()
+        #expect(state == .available)
+        #expect(environment.healthRefreshID == before + 1)
+    }
 }

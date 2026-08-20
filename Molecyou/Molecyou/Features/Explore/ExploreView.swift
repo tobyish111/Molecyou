@@ -61,7 +61,9 @@ struct ExploreView: View {
             recomputeResults()
         }
         .onChange(of: searchKey) { _, _ in recomputeResults() }
-        .task { await loadActivityRecommendations() }
+        // Reload activity recommendations when health data is invalidated (access granted /
+        // returned to foreground), in addition to first appearance.
+        .task(id: environment.healthRefreshID) { await loadActivityRecommendations() }
     }
 
     private var filterBar: some View {

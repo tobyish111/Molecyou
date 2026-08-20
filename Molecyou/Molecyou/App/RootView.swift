@@ -3,6 +3,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("demonstrationMode") private var demonstrationMode = true
     @State private var environment: AppEnvironment?
@@ -27,6 +28,11 @@ struct RootView: View {
         .onChange(of: demonstrationMode) { _, newValue in
             environment = AppEnvironment.live(modelContext: modelContext, demonstrationMode: newValue)
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Returning to the foreground can mean HealthKit access was granted/changed in
+            // Settings — re-read so newly-available data links without a manual refresh.
+            if newPhase == .active { environment?.invalidateHealthData() }
+        }
     }
 }
 
@@ -39,13 +45,20 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             NavigationStack(path: $todayPath) {
+                // Identity tied to the environment instance: toggling demonstration mode rebuilds
+                // the environment (with a different health provider), and this recreates the view
+                // so its @State view model reloads from the new provider instead of showing stale
+                // data. Scoped to this view (not the whole TabView) so other tabs' navigation
+                // stacks — e.g. the Profile screen where the toggle lives — are left intact.
                 TodayView(environment: environment)
+                    .id(ObjectIdentifier(environment))
                     .navigationDestination(for: AppRoute.self) { destinationView($0) }
             }
             .tabItem { Label("Today", systemImage: "sparkles") }
 
             NavigationStack(path: $explorePath) {
                 ExploreView(environment: environment)
+                    .id(ObjectIdentifier(environment))
                     .navigationDestination(for: AppRoute.self) { destinationView($0) }
             }
             .tabItem { Label("Explore", systemImage: "magnifyingglass") }

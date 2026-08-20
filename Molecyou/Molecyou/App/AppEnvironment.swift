@@ -30,6 +30,24 @@ final class AppEnvironment {
         self.analytics = analytics
     }
 
+    /// Bumped whenever the health snapshot should be re-read — e.g. HealthKit access was just
+    /// granted, or the app returned to the foreground (access may have been changed in Settings).
+    /// Health-driven views observe this via `.task(id:)` and reload when it changes.
+    private(set) var healthRefreshID = 0
+
+    /// Marks the current health snapshot as stale so observing views reload it.
+    func invalidateHealthData() {
+        healthRefreshID &+= 1
+    }
+
+    /// Requests HealthKit authorization, then invalidates cached health data so any
+    /// newly-authorized workouts and metrics link across the app immediately.
+    func requestHealthAuthorization() async -> HealthAuthorizationState {
+        let state = await healthProvider.requestAuthorization()
+        invalidateHealthData()
+        return state
+    }
+
     static func live(modelContext: ModelContext, demonstrationMode: Bool) -> AppEnvironment {
         let graph = KnowledgeGraphStore.loadBundled()
         let cache = StructureCache()

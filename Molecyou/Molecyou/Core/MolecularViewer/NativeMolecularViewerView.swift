@@ -194,20 +194,27 @@ struct NativeMolecularViewerView: UIViewRepresentable {
             highlightRoot.childNodes.forEach { $0.removeFromParentNode() }
             let renderAtoms = sampledAtoms(for: currentRepresentation)
 
+            // Build the static geometry into a scratch container, then flatten it so the GPU
+            // draws one merged mesh per material instead of one draw call per atom/bond.
+            let staticGeometry = SCNNode()
             switch currentRepresentation {
             case .ribbon:
-                renderTrace(backboneAtoms, radius: 0.28, colorMode: currentColorMode)
+                renderTrace(backboneAtoms, radius: 0.28, colorMode: currentColorMode, into: staticGeometry)
             case .surface:
-                renderSpheres(backboneAtoms, radius: 1.15, colorMode: currentColorMode, opacity: 0.58)
-                renderTrace(backboneAtoms, radius: 0.16, colorMode: currentColorMode)
+                renderSpheres(backboneAtoms, radius: 1.15, colorMode: currentColorMode, opacity: 0.58, into: staticGeometry)
+                renderTrace(backboneAtoms, radius: 0.16, colorMode: currentColorMode, into: staticGeometry)
             case .ballAndStick:
-                renderSpheres(renderAtoms, radius: 0.38, colorMode: currentColorMode, opacity: 0.95)
-                renderTrace(backboneAtoms, radius: 0.12, colorMode: currentColorMode)
+                renderSpheres(renderAtoms, radius: 0.38, colorMode: currentColorMode, opacity: 0.95, into: staticGeometry)
+                renderTrace(backboneAtoms, radius: 0.12, colorMode: currentColorMode, into: staticGeometry)
             case .atoms:
-                renderSpheres(renderAtoms, radius: 0.24, colorMode: currentColorMode, opacity: 0.9)
+                renderSpheres(renderAtoms, radius: 0.24, colorMode: currentColorMode, opacity: 0.9, into: staticGeometry)
+            }
+            if !staticGeometry.childNodes.isEmpty {
+                modelRoot.addChildNode(staticGeometry.flattenedClone())
             }
 
             if currentLabelsEnabled {
+                // Labels keep per-node billboard constraints, so they stay unflattened.
                 renderLabels(backboneAtoms, proteinName: currentProteinName)
             }
 
@@ -223,21 +230,21 @@ struct NativeMolecularViewerView: UIViewRepresentable {
             return stride(from: 0, to: atoms.count, by: step).map { atoms[$0] }
         }
 
-        private func renderTrace(_ points: [MolecularAtom], radius: CGFloat, colorMode: ColorMode) {
+        private func renderTrace(_ points: [MolecularAtom], radius: CGFloat, colorMode: ColorMode, into target: SCNNode) {
             guard points.count > 1 else { return }
             for pair in zip(points, points.dropFirst()) where pair.0.chainID == pair.1.chainID {
                 let style = visualStyle(for: pair.0, fallbackOpacity: 0.96, mode: colorMode)
-                modelRoot.addChildNode(cylinder(from: pair.0.position, to: pair.1.position, radius: radius, color: style.color, opacity: style.opacity))
+                target.addChildNode(cylinder(from: pair.0.position, to: pair.1.position, radius: radius, color: style.color, opacity: style.opacity))
             }
-            renderSpheres(points, radius: radius * 1.8, colorMode: colorMode, opacity: 0.98)
+            renderSpheres(points, radius: radius * 1.8, colorMode: colorMode, opacity: 0.98, into: target)
         }
 
-        private func renderSpheres(_ atoms: [MolecularAtom], radius: CGFloat, colorMode: ColorMode, opacity: CGFloat) {
+        private func renderSpheres(_ atoms: [MolecularAtom], radius: CGFloat, colorMode: ColorMode, opacity: CGFloat, into target: SCNNode) {
             for atom in atoms {
                 let style = visualStyle(for: atom, fallbackOpacity: opacity, mode: colorMode)
                 let node = SCNNode(geometry: sphereGeometry(radius: radius, color: style.color, opacity: style.opacity))
                 node.position = atom.position
-                modelRoot.addChildNode(node)
+                target.addChildNode(node)
             }
         }
 
