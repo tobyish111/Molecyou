@@ -25,7 +25,7 @@ struct ProfileView: View {
             Section("HealthKit") {
                 Label(label(for: healthState), systemImage: "heart.text.square")
                 Button("Request or Manage Health Access") {
-                    Task { healthState = await environment.healthProvider.requestAuthorization() }
+                    Task { healthState = await environment.requestHealthAuthorization() }
                 }
                 Button("Open Settings") { openSettings() }
             }

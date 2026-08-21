@@ -44,7 +44,9 @@ struct ProteinDetailView: View {
         .moleculeScreenBackground()
         .task {
             environment.libraryRepository.addRecent(itemID: protein.uniprotAccession, itemType: "protein")
-            await loadPrediction()
+            if protein.alphaFoldAvailable {
+                await loadPrediction()
+            }
             await loadHealthContext()
         }
     }
@@ -83,7 +85,16 @@ struct ProteinDetailView: View {
         }
     }
 
+    @ViewBuilder
     private var structureSummary: some View {
+        if protein.alphaFoldAvailable {
+            availableStructureCard
+        } else {
+            unavailableStructureCard
+        }
+    }
+
+    private var availableStructureCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: MYSpacing.md) {
                 HStack(alignment: .firstTextBaseline) {
@@ -126,6 +137,35 @@ struct ProteinDetailView: View {
         }
         .background {
             LinearGradient(colors: [Color.cyan.opacity(0.14), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
+                .clipShape(RoundedRectangle(cornerRadius: MYRadius.lg, style: .continuous))
+        }
+    }
+
+    private var unavailableStructureCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: MYSpacing.md) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label {
+                        Text("3D Structure")
+                            .font(.headline)
+                    } icon: {
+                        Image(systemName: "cube.transparent")
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Label("Not in AlphaFold DB", systemImage: "xmark.seal")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("AlphaFold DB does not provide a predicted structure for this protein, so no 3D model is shown. Very large proteins can exceed AlphaFold's per-model size limit. UniProt remains the reference for its sequence and function.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .background {
+            LinearGradient(colors: [Color.secondary.opacity(0.12), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
                 .clipShape(RoundedRectangle(cornerRadius: MYRadius.lg, style: .continuous))
         }
     }
@@ -521,4 +561,9 @@ private struct ProteinMetricLine: View {
 
 #Preview("Protein") {
     NavigationStack { ProteinDetailView(environment: .preview, protein: KnowledgeGraphStore.preview.proteins[1]) }
+}
+
+#Preview("Protein - No AlphaFold structure") {
+    let titin = KnowledgeGraphStore.preview.protein(accession: "Q8WZ42") ?? KnowledgeGraphStore.preview.proteins[0]
+    return NavigationStack { ProteinDetailView(environment: .preview, protein: titin) }
 }

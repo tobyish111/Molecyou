@@ -60,12 +60,12 @@ actor HealthKitManager: HealthDataProviding {
 
     private var readTypes: Set<HKObjectType> {
         var types: Set<HKObjectType> = [HKObjectType.workoutType()]
+        // Only request what `snapshot()` actually reads — keeps the authorization prompt
+        // honest. (heartRate / heartRateVariabilitySDNN / walkingHeartRateAverage were
+        // requested but never queried; averageWorkoutHeartRate is not computed.)
         let identifiers: [HKQuantityTypeIdentifier] = [
             .activeEnergyBurned,
-            .heartRate,
             .restingHeartRate,
-            .heartRateVariabilitySDNN,
-            .walkingHeartRateAverage,
             .respiratoryRate,
             .oxygenSaturation,
             .vo2Max

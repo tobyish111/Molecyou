@@ -142,7 +142,7 @@ struct OnboardingView: View {
                     page = 4
                 } else {
                     Task {
-                        healthState = await environment.healthProvider.requestAuthorization()
+                        healthState = await environment.requestHealthAuthorization()
                         page = 4
                     }
                 }

@@ -3,29 +3,49 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("demonstrationMode") private var demonstrationMode = true
     @State private var environment: AppEnvironment?
+    @State private var isPreparing = true
+
+    private var isReady: Bool { environment != nil && !isPreparing }
 
     var body: some View {
-        Group {
-            if let environment {
-                if hasCompletedOnboarding {
-                    MainTabView(environment: environment)
-                } else {
-                    OnboardingView(environment: environment, hasCompletedOnboarding: $hasCompletedOnboarding)
+        ZStack {
+            if isReady, let environment {
+                Group {
+                    if hasCompletedOnboarding {
+                        MainTabView(environment: environment)
+                    } else {
+                        OnboardingView(environment: environment, hasCompletedOnboarding: $hasCompletedOnboarding)
+                    }
                 }
+                .transition(.opacity)
             } else {
-                ProgressView("Preparing Molecyou")
+                LaunchScreenView()
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.45), value: isReady)
         .task {
             if environment == nil {
                 environment = AppEnvironment.live(modelContext: modelContext, demonstrationMode: demonstrationMode)
             }
+            // Hold the branded launch screen briefly so the hand-off from the native
+            // launch screen doesn't flash past. UI tests skip the delay for speed.
+            if !ProcessInfo.processInfo.arguments.contains("UITesting") {
+                try? await Task.sleep(for: .seconds(1.1))
+            }
+            isPreparing = false
         }
         .onChange(of: demonstrationMode) { _, newValue in
             environment = AppEnvironment.live(modelContext: modelContext, demonstrationMode: newValue)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Returning to the foreground can mean HealthKit access was granted/changed in
+            // Settings — re-read so newly-available data links without a manual refresh.
+            if newPhase == .active { environment?.invalidateHealthData() }
         }
     }
 }
@@ -39,13 +59,20 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             NavigationStack(path: $todayPath) {
+                // Identity tied to the environment instance: toggling demonstration mode rebuilds
+                // the environment (with a different health provider), and this recreates the view
+                // so its @State view model reloads from the new provider instead of showing stale
+                // data. Scoped to this view (not the whole TabView) so other tabs' navigation
+                // stacks — e.g. the Profile screen where the toggle lives — are left intact.
                 TodayView(environment: environment)
+                    .id(ObjectIdentifier(environment))
                     .navigationDestination(for: AppRoute.self) { destinationView($0) }
             }
             .tabItem { Label("Today", systemImage: "sparkles") }
 
             NavigationStack(path: $explorePath) {
                 ExploreView(environment: environment)
+                    .id(ObjectIdentifier(environment))
                     .navigationDestination(for: AppRoute.self) { destinationView($0) }
             }
             .tabItem { Label("Explore", systemImage: "magnifyingglass") }

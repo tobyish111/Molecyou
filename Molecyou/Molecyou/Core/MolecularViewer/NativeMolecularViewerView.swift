@@ -33,10 +33,16 @@ struct NativeMolecularViewerView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
-        let renderKey = RenderKey(dataHash: structureData.hashValue, representation: representation, colorMode: colorMode, labelsEnabled: labelsEnabled)
-        if context.coordinator.renderKey != renderKey {
-            context.coordinator.renderKey = renderKey
-            context.coordinator.render(structureData: structureData, proteinName: proteinName, representation: representation, colorMode: colorMode, labelsEnabled: labelsEnabled)
+        let coordinator = context.coordinator
+        let dataHash = structureData.hashValue
+        if coordinator.loadedDataHash != dataHash {
+            // The structure itself changed — parse once and do a full (re)build.
+            coordinator.loadedDataHash = dataHash
+            coordinator.render(structureData: structureData, proteinName: proteinName, representation: representation, colorMode: colorMode, labelsEnabled: labelsEnabled)
+        } else {
+            // Same atoms, only appearance changed — redraw from the already-parsed atoms
+            // instead of re-parsing the entire mmCIF file on every toggle.
+            coordinator.updateStyleIfNeeded(representation: representation, colorMode: colorMode, labelsEnabled: labelsEnabled)
         }
 
         if context.coordinator.lastCommandSequence != commandSequence, let command {
@@ -54,7 +60,7 @@ struct NativeMolecularViewerView: UIViewRepresentable {
         private let cameraTarget = SCNNode()
         private let onEvent: @MainActor (String) -> Void
         weak var sceneView: SCNView?
-        var renderKey: RenderKey?
+        var loadedDataHash: Int?
         var lastCommand: MolecularViewerCommand?
         var lastCommandSequence = 0
         private var atoms: [MolecularAtom] = []
@@ -66,6 +72,12 @@ struct NativeMolecularViewerView: UIViewRepresentable {
         private var currentLabelsEnabled = false
         private let normalizedSceneRadius: Float = 34
         private let canonicalCameraDistance: Float = 105
+
+        // Per-draw caches so many atoms/bonds reuse a handful of geometry + material
+        // objects instead of allocating a fresh SCNSphere / SCNMaterial per primitive.
+        // Cleared at the start of every drawModel() so nothing leaks across draws.
+        private var materialCache: [MaterialKey: SCNMaterial] = [:]
+        private var sphereCache: [SphereGeometryKey: SCNGeometry] = [:]
 
         init(onEvent: @escaping @MainActor (String) -> Void) {
             self.onEvent = onEvent
@@ -142,6 +154,19 @@ struct NativeMolecularViewerView: UIViewRepresentable {
             }
         }
 
+        /// Rebuilds the geometry for an appearance change using the atoms already parsed by
+        /// `render(...)`. Skips re-parsing and camera/scale work since the atoms are unchanged.
+        func updateStyleIfNeeded(representation: RepresentationType, colorMode: ColorMode, labelsEnabled: Bool) {
+            guard currentRepresentation != representation
+                || currentColorMode != colorMode
+                || currentLabelsEnabled != labelsEnabled else { return }
+            guard !atoms.isEmpty else { return }
+            currentRepresentation = representation
+            currentColorMode = colorMode
+            currentLabelsEnabled = labelsEnabled
+            drawModel()
+        }
+
         func apply(_ command: MolecularViewerCommand) {
             switch command {
             case .resetCamera, .centerStructure:
@@ -159,6 +184,9 @@ struct NativeMolecularViewerView: UIViewRepresentable {
         }
 
         private func drawModel() {
+            // Fresh caches per draw — geometry/material sharing is scoped to this build only.
+            materialCache.removeAll(keepingCapacity: true)
+            sphereCache.removeAll(keepingCapacity: true)
             modelRoot.childNodes.filter { $0 !== highlightRoot }.forEach { $0.removeFromParentNode() }
             if highlightRoot.parent == nil {
                 modelRoot.addChildNode(highlightRoot)
@@ -166,20 +194,27 @@ struct NativeMolecularViewerView: UIViewRepresentable {
             highlightRoot.childNodes.forEach { $0.removeFromParentNode() }
             let renderAtoms = sampledAtoms(for: currentRepresentation)
 
+            // Build the static geometry into a scratch container, then flatten it so the GPU
+            // draws one merged mesh per material instead of one draw call per atom/bond.
+            let staticGeometry = SCNNode()
             switch currentRepresentation {
             case .ribbon:
-                renderTrace(backboneAtoms, radius: 0.28, colorMode: currentColorMode)
+                renderTrace(backboneAtoms, radius: 0.28, colorMode: currentColorMode, into: staticGeometry)
             case .surface:
-                renderSpheres(backboneAtoms, radius: 1.15, colorMode: currentColorMode, opacity: 0.58)
-                renderTrace(backboneAtoms, radius: 0.16, colorMode: currentColorMode)
+                renderSpheres(backboneAtoms, radius: 1.15, colorMode: currentColorMode, opacity: 0.58, into: staticGeometry)
+                renderTrace(backboneAtoms, radius: 0.16, colorMode: currentColorMode, into: staticGeometry)
             case .ballAndStick:
-                renderSpheres(renderAtoms, radius: 0.38, colorMode: currentColorMode, opacity: 0.95)
-                renderTrace(backboneAtoms, radius: 0.12, colorMode: currentColorMode)
+                renderSpheres(renderAtoms, radius: 0.38, colorMode: currentColorMode, opacity: 0.95, into: staticGeometry)
+                renderTrace(backboneAtoms, radius: 0.12, colorMode: currentColorMode, into: staticGeometry)
             case .atoms:
-                renderSpheres(renderAtoms, radius: 0.24, colorMode: currentColorMode, opacity: 0.9)
+                renderSpheres(renderAtoms, radius: 0.24, colorMode: currentColorMode, opacity: 0.9, into: staticGeometry)
+            }
+            if !staticGeometry.childNodes.isEmpty {
+                modelRoot.addChildNode(staticGeometry.flattenedClone())
             }
 
             if currentLabelsEnabled {
+                // Labels keep per-node billboard constraints, so they stay unflattened.
                 renderLabels(backboneAtoms, proteinName: currentProteinName)
             }
 
@@ -195,25 +230,35 @@ struct NativeMolecularViewerView: UIViewRepresentable {
             return stride(from: 0, to: atoms.count, by: step).map { atoms[$0] }
         }
 
-        private func renderTrace(_ points: [MolecularAtom], radius: CGFloat, colorMode: ColorMode) {
+        private func renderTrace(_ points: [MolecularAtom], radius: CGFloat, colorMode: ColorMode, into target: SCNNode) {
             guard points.count > 1 else { return }
             for pair in zip(points, points.dropFirst()) where pair.0.chainID == pair.1.chainID {
                 let style = visualStyle(for: pair.0, fallbackOpacity: 0.96, mode: colorMode)
-                modelRoot.addChildNode(cylinder(from: pair.0.position, to: pair.1.position, radius: radius, color: style.color, opacity: style.opacity))
+                target.addChildNode(cylinder(from: pair.0.position, to: pair.1.position, radius: radius, color: style.color, opacity: style.opacity))
             }
-            renderSpheres(points, radius: radius * 1.8, colorMode: colorMode, opacity: 0.98)
+            renderSpheres(points, radius: radius * 1.8, colorMode: colorMode, opacity: 0.98, into: target)
         }
 
-        private func renderSpheres(_ atoms: [MolecularAtom], radius: CGFloat, colorMode: ColorMode, opacity: CGFloat) {
+        private func renderSpheres(_ atoms: [MolecularAtom], radius: CGFloat, colorMode: ColorMode, opacity: CGFloat, into target: SCNNode) {
             for atom in atoms {
-                let sphere = SCNSphere(radius: radius)
-                sphere.segmentCount = 10
                 let style = visualStyle(for: atom, fallbackOpacity: opacity, mode: colorMode)
-                sphere.firstMaterial = material(color: style.color, opacity: style.opacity)
-                let node = SCNNode(geometry: sphere)
+                let node = SCNNode(geometry: sphereGeometry(radius: radius, color: style.color, opacity: style.opacity))
                 node.position = atom.position
-                modelRoot.addChildNode(node)
+                target.addChildNode(node)
             }
+        }
+
+        /// Returns a shared `SCNSphere` for the given radius+color+opacity so that all atoms
+        /// with the same appearance point at one geometry+material object instead of each
+        /// allocating (and tessellating) its own. Visually identical to a per-atom sphere.
+        private func sphereGeometry(radius: CGFloat, color: UIColor, opacity: CGFloat) -> SCNGeometry {
+            let key = SphereGeometryKey(radius: Int((radius * 1000).rounded()), material: materialKey(color, opacity: opacity))
+            if let cached = sphereCache[key] { return cached }
+            let sphere = SCNSphere(radius: radius)
+            sphere.segmentCount = 10
+            sphere.firstMaterial = material(color: color, opacity: opacity)
+            sphereCache[key] = sphere
+            return sphere
         }
 
         private func addHighlightMarkers(for atoms: [MolecularAtom]) {
@@ -369,6 +414,8 @@ struct NativeMolecularViewerView: UIViewRepresentable {
         }
 
         private func material(color: UIColor, opacity: CGFloat) -> SCNMaterial {
+            let key = materialKey(color, opacity: opacity)
+            if let cached = materialCache[key] { return cached }
             let material = SCNMaterial()
             material.diffuse.contents = color
             material.emission.contents = color.withAlphaComponent(0.08)
@@ -376,7 +423,20 @@ struct NativeMolecularViewerView: UIViewRepresentable {
             material.roughness.contents = 0.42
             material.metalness.contents = 0.05
             material.transparency = opacity
+            materialCache[key] = material
             return material
+        }
+
+        private func materialKey(_ color: UIColor, opacity: CGFloat) -> MaterialKey {
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+            return MaterialKey(
+                red: Int((red * 255).rounded()),
+                green: Int((green * 255).rounded()),
+                blue: Int((blue * 255).rounded()),
+                alpha: Int((alpha * 255).rounded()),
+                opacity: Int((opacity * 255).rounded())
+            )
         }
 
         private func color(for atom: MolecularAtom, mode: ColorMode) -> UIColor {
@@ -431,11 +491,20 @@ struct FocusedMolecularRegion: Equatable {
     }
 }
 
-struct RenderKey: Equatable {
-    let dataHash: Int
-    let representation: RepresentationType
-    let colorMode: ColorMode
-    let labelsEnabled: Bool
+/// Value key that collapses identical materials so one `SCNMaterial` is shared across
+/// every primitive with the same color+opacity within a single draw.
+struct MaterialKey: Hashable {
+    let red: Int
+    let green: Int
+    let blue: Int
+    let alpha: Int
+    let opacity: Int
+}
+
+/// Value key for sharing one `SCNSphere` per radius+material combination within a draw.
+struct SphereGeometryKey: Hashable {
+    let radius: Int
+    let material: MaterialKey
 }
 
 struct MolecularAtom: Sendable {

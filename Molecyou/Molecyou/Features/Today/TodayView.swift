@@ -49,7 +49,9 @@ struct TodayView: View {
         }
         .navigationTitle("Today")
         .moleculeScreenBackground()
-        .task { await viewModel.load() }
+        // Reloads on first appearance and whenever health data is invalidated (access granted,
+        // returned to foreground), so newly-authorized data links automatically.
+        .task(id: environment.healthRefreshID) { await viewModel.load() }
         .refreshable { await viewModel.load() }
     }
 
