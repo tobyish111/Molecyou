@@ -7,23 +7,37 @@ struct RootView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("demonstrationMode") private var demonstrationMode = true
     @State private var environment: AppEnvironment?
+    @State private var isPreparing = true
+
+    private var isReady: Bool { environment != nil && !isPreparing }
 
     var body: some View {
-        Group {
-            if let environment {
-                if hasCompletedOnboarding {
-                    MainTabView(environment: environment)
-                } else {
-                    OnboardingView(environment: environment, hasCompletedOnboarding: $hasCompletedOnboarding)
+        ZStack {
+            if isReady, let environment {
+                Group {
+                    if hasCompletedOnboarding {
+                        MainTabView(environment: environment)
+                    } else {
+                        OnboardingView(environment: environment, hasCompletedOnboarding: $hasCompletedOnboarding)
+                    }
                 }
+                .transition(.opacity)
             } else {
-                ProgressView("Preparing Molecyou")
+                LaunchScreenView()
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.45), value: isReady)
         .task {
             if environment == nil {
                 environment = AppEnvironment.live(modelContext: modelContext, demonstrationMode: demonstrationMode)
             }
+            // Hold the branded launch screen briefly so the hand-off from the native
+            // launch screen doesn't flash past. UI tests skip the delay for speed.
+            if !ProcessInfo.processInfo.arguments.contains("UITesting") {
+                try? await Task.sleep(for: .seconds(1.1))
+            }
+            isPreparing = false
         }
         .onChange(of: demonstrationMode) { _, newValue in
             environment = AppEnvironment.live(modelContext: modelContext, demonstrationMode: newValue)

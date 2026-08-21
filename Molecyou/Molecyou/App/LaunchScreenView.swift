@@ -3,16 +3,22 @@ import SwiftUI
 /// Branded launch/splash screen shown while the app prepares its environment.
 ///
 /// It mirrors the onboarding welcome styling (dark gradient, molecular logo,
-/// wordmark, and tagline) so the cold-start hand-off from the native launch
-/// screen — `LaunchScreen.storyboard`, which uses the same dark background —
-/// flows seamlessly into the running app.
+/// wordmark, and tagline). The first rendered frame is just `systemBackground`
+/// — the same background Xcode's generated launch screen shows at cold start —
+/// so the hand-off is seamless; the dark gradient and logo then animate in.
 struct LaunchScreenView: View {
     @State private var appeared = false
 
     var body: some View {
         ZStack {
+            // Matches the generated native launch screen's first frame, so there's
+            // no flash when the app takes over rendering.
+            Color(.systemBackground)
+                .ignoresSafeArea()
+
             MYGradient.darkBackground
                 .ignoresSafeArea()
+                .opacity(appeared ? 1 : 0)
 
             // Soft accent glow behind the logo for a little depth.
             RadialGradient(
